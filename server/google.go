@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -45,20 +46,21 @@ func (p *Plugin) createMeeting(userID string) (string, error) {
 		return "", fmt.Errorf("unable to retrieve Calendar client: %v", err)
 	}
 
+	now := time.Now().UTC()
 	event := &calendar.Event{
 		Summary:     "Mattermost Meeting",
 		Description: "Meeting created from Mattermost",
 		Start: &calendar.EventDateTime{
-			DateTime: "2026-03-06T17:00:00Z", // Example, should probably be "now"
+			DateTime: now.Format(time.RFC3339),
 			TimeZone: "UTC",
 		},
 		End: &calendar.EventDateTime{
-			DateTime: "2026-03-06T18:00:00Z",
+			DateTime: now.Add(1 * time.Hour).Format(time.RFC3339),
 			TimeZone: "UTC",
 		},
 		ConferenceData: &calendar.ConferenceData{
 			CreateRequest: &calendar.CreateConferenceRequest{
-				RequestId: "mattermost-" + userID,
+				RequestId: fmt.Sprintf("mm-%s-%d", userID, now.UnixMilli()),
 				ConferenceSolutionKey: &calendar.ConferenceSolutionKey{
 					Type: "hangoutsMeet",
 				},
@@ -77,15 +79,18 @@ func (p *Plugin) createMeeting(userID string) (string, error) {
 func (p *Plugin) saveGoogleToken(userID string, token *oauth2.Token) error {
 	data, err := json.Marshal(token)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal token: %w", err)
 	}
-	return p.API.KVSet(fmt.Sprintf("token_%s", userID), data)
+	if appErr := p.API.KVSet(fmt.Sprintf("token_%s", userID), data); appErr != nil {
+		return fmt.Errorf("kv set token_%s: %s", userID, appErr.Error())
+	}
+	return nil
 }
 
 func (p *Plugin) getGoogleToken(userID string) (*oauth2.Token, error) {
 	data, appErr := p.API.KVGet(fmt.Sprintf("token_%s", userID))
 	if appErr != nil {
-		return nil, appErr
+		return nil, fmt.Errorf("kv get token_%s: %s", userID, appErr.Error())
 	}
 	if data == nil {
 		return nil, fmt.Errorf("no token found")

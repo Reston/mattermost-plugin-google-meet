@@ -276,11 +276,6 @@ endif
 ## Builds and bundles the plugin.
 .PHONY: dist
 dist: apply server webapp bundle
-ifeq ($(PLUGIN_ID),com.mattermost.plugin-starter-template)
-	$(warning WARNING)
-	$(warning You are building with the default plugin ID "com.mattermost.plugin-starter-template".)
-	$(warning Consider editing plugin.json to configure your project with a unique plugin ID.)
-endif
 
 ## Builds and installs the plugin to a server.
 .PHONY: deploy
@@ -436,5 +431,5 @@ help:
 mock:
 ifneq ($(HAS_SERVER),)
 	go install go.uber.org/mock/mockgen@v0.6.0
-	mockgen -destination=server/command/mocks/mock_commands.go -package=mocks github.com/mattermost/mattermost-plugin-starter-template/server/command Command
+	mockgen -destination=server/command/mocks/mock_commands.go -package=mocks github.com/reston/mattermost-plugin-google-meet/server/command Command
 endif

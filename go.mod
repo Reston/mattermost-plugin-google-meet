@@ -1,4 +1,4 @@
-module github.com/mattermost/mattermost-plugin-starter-template
+module github.com/reston/mattermost-plugin-google-meet
 
 go 1.25.0
 

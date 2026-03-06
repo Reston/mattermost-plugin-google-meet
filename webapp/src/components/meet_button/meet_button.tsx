@@ -2,6 +2,7 @@ import React from "react";
 import { useSelector } from "react-redux";
 
 import type { GlobalState } from "@mattermost/types/store";
+import { Client4 } from "mattermost-redux/client";
 
 import { getCurrentChannelId } from "mattermost-redux/selectors/entities/common";
 
@@ -21,12 +22,12 @@ const MeetButton: React.FC<Props> = ({ channelId: propsChannelId }) => {
         try {
             const response = await fetch(
                 `/plugins/${manifest.id}/api/v1/create?channel_id=${channelId}`,
-                {
+                Client4.getOptions({
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                     },
-                },
+                }),
             );
 
             if (response.status === 401) {

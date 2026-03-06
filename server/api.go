@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -70,12 +72,64 @@ func (p *Plugin) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 
 	if err := p.saveGoogleToken(state, token); err != nil {
 		p.API.LogError("Failed to save token", "error", err)
-		http.Error(w, "Failed to save token", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to save token: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprint(w, "Authenticated successfully! You can now close this window.")
+	fmt.Fprintf(w, `<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Google Meet Connected</title>
+	<style>
+		body {
+			font-family: sans-serif;
+			margin: 0;
+			padding: 24px;
+			background: #f5f7fa;
+			color: #1f2329;
+		}
+		.card {
+			max-width: 520px;
+			margin: 40px auto;
+			padding: 24px;
+			background: #ffffff;
+			border: 1px solid #d9e0e6;
+			border-radius: 8px;
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+		}
+		p {
+			line-height: 1.5;
+		}
+	</style>
+</head>
+<body>
+	<div class="card">
+		<h1>Google Meet connected</h1>
+		<p>You can return to Mattermost. If the meeting link does not appear automatically, click the Google Meet button once more.</p>
+		<p>This tab will try to close automatically.</p>
+	</div>
+	<script>
+		(function() {
+			var pluginId = %q;
+			var message = {type: 'google-meet-auth-complete', pluginId: pluginId};
+			try {
+				window.localStorage.setItem(pluginId + '_auth_complete', String(Date.now()));
+			} catch (error) {}
+			try {
+				if (window.opener && !window.opener.closed) {
+					window.opener.postMessage(message, window.location.origin);
+				}
+			} catch (error) {}
+			window.setTimeout(function() {
+				window.close();
+			}, 300);
+		})();
+	</script>
+</body>
+</html>`, template.JSEscapeString(manifest.Id))
 }
 
 func (p *Plugin) CreateMeeting(w http.ResponseWriter, r *http.Request) {
@@ -103,9 +157,9 @@ func (p *Plugin) CreateMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	post := &model.Post{
-		UserId:    manifest.Id, // Use plugin ID or set up a bot account
+		UserId:    userID,
 		ChannelId: channelID,
-		Message:   fmt.Sprintf("I've created a Google Meet for you: %s", link),
+		Message:   fmt.Sprintf("I've created a Google Meet: %s", link),
 		Type:      model.PostTypeDefault,
 	}
 
@@ -116,6 +170,7 @@ func (p *Plugin) CreateMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"meet_url": "%s"}`, link)
+	resp, _ := json.Marshal(map[string]string{"meet_url": link})
+	w.Write(resp)
 }
 

@@ -37,15 +37,17 @@
                 "type": "text",
                 "help_text": "The Client Secret for your Google OAuth2 application.",
                 "placeholder": "Enter your Google Client Secret",
-                "default": ""
+                "default": "",
+                "secret": true
             },
             {
                 "key": "EncryptionKey",
                 "display_name": "Encryption Key",
-                "type": "text",
+                "type": "generated",
                 "help_text": "A secret key used to encrypt user tokens in the database.",
                 "placeholder": "Enter a random string for encryption",
-                "default": ""
+                "default": "",
+                "secret": true
             }
         ]
     }
