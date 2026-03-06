@@ -1,6 +1,9 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -21,6 +24,19 @@ type configuration struct {
 	GoogleClientID     string
 	GoogleClientSecret string
 	EncryptionKey      string
+}
+
+func (c *configuration) ToMap() (map[string]any, error) {
+	var out map[string]any
+	data, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, err
+	}
+
+	return out, nil
 }
 
 // Clone shallow copies the configuration. Your implementation may require a deep copy if
@@ -73,6 +89,7 @@ func (p *Plugin) setConfiguration(configuration *configuration) {
 
 // OnConfigurationChange is invoked when configuration changes may have been made.
 func (p *Plugin) OnConfigurationChange() error {
+	previous := p.getConfiguration()
 	configuration := new(configuration)
 
 	// Load the public configuration fields from the Mattermost server configuration.
@@ -80,7 +97,56 @@ func (p *Plugin) OnConfigurationChange() error {
 		return errors.Wrap(err, "failed to load plugin configuration")
 	}
 
+	generatedEncryptionKey := false
+	resetStoredTokens := previous != nil && previous.EncryptionKey != "" && configuration.EncryptionKey != previous.EncryptionKey
+	if configuration.EncryptionKey == "" {
+		secret, err := generateSecret()
+		if err != nil {
+			return errors.Wrap(err, "failed to generate encryption key")
+		}
+		configuration.EncryptionKey = secret
+		generatedEncryptionKey = true
+		p.API.LogInfo("Auto-generated encryption key for Google Meet plugin")
+	}
+
 	p.setConfiguration(configuration)
 
+	if generatedEncryptionKey {
+		go p.storeConfiguration(configuration)
+	}
+
+	if resetStoredTokens {
+		go p.resetStoredGoogleTokens()
+	}
+
 	return nil
+}
+
+func (p *Plugin) storeConfiguration(configuration *configuration) {
+	configMap, err := configuration.ToMap()
+	if err != nil {
+		p.API.LogError("Failed to serialize updated plugin configuration", "error", err.Error())
+		return
+	}
+
+	if appErr := p.API.SavePluginConfig(configMap); appErr != nil {
+		p.API.LogError("Failed to store updated plugin configuration", "error", appErr.Error())
+	}
+}
+
+func generateSecret() (string, error) {
+	b := make([]byte, 256)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+
+	secret := base64.RawURLEncoding.EncodeToString(b)
+	return secret[:32], nil
+}
+
+func (p *Plugin) resetStoredGoogleTokens() {
+	p.API.LogInfo("Encryption key changed. Resetting stored Google Meet tokens; users will need to reconnect.")
+	if appErr := p.API.KVDeleteAll(); appErr != nil {
+		p.API.LogError("Failed to reset stored Google Meet tokens", "error", appErr.Error())
+	}
 }
