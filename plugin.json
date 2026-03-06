@@ -1,11 +1,12 @@
 {
-    "id": "com.mattermost.plugin-starter-template",
-    "name": "Plugin Starter Template",
-    "description": "This plugin serves as a starting point for writing a Mattermost plugin.",
-    "homepage_url": "https://github.com/mattermost/mattermost-plugin-starter-template",
-    "support_url": "https://github.com/mattermost/mattermost-plugin-starter-template/issues",
-    "icon_path": "assets/starter-template-icon.svg",
-    "min_server_version": "6.2.1",
+    "id": "com.mattermost.google-meet",
+    "name": "Google Meet",
+    "version": "0.1.2",
+    "description": "Create Google Meet meetings directly from Mattermost.",
+    "homepage_url": "https://github.com/reston/mattermost-plugin-google-meet",
+    "support_url": "https://github.com/reston/mattermost-plugin-google-meet/issues",
+    "icon_path": "assets/icon.svg",
+    "min_server_version": "10.0.0",
     "server": {
         "executables": {
             "linux-amd64": "server/dist/plugin-linux-amd64",
@@ -19,8 +20,33 @@
         "bundle_path": "webapp/dist/main.js"
     },
     "settings_schema": {
-        "header": "",
+        "header": "Google Meet Integration Settings",
         "footer": "",
-        "settings": []
+        "settings": [
+            {
+                "key": "GoogleClientID",
+                "display_name": "Google Client ID",
+                "type": "text",
+                "help_text": "The Client ID for your Google OAuth2 application.",
+                "placeholder": "Enter your Google Client ID",
+                "default": ""
+            },
+            {
+                "key": "GoogleClientSecret",
+                "display_name": "Google Client Secret",
+                "type": "text",
+                "help_text": "The Client Secret for your Google OAuth2 application.",
+                "placeholder": "Enter your Google Client Secret",
+                "default": ""
+            },
+            {
+                "key": "EncryptionKey",
+                "display_name": "Encryption Key",
+                "type": "text",
+                "help_text": "A secret key used to encrypt user tokens in the database.",
+                "placeholder": "Enter a random string for encryption",
+                "default": ""
+            }
+        ]
     }
 }
