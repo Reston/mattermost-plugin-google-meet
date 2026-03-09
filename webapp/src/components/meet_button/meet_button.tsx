@@ -2,8 +2,8 @@ import React from "react";
 import { useSelector } from "react-redux";
 
 import type { GlobalState } from "@mattermost/types/store";
-import { Client4 } from "mattermost-redux/client";
 
+import { Client4 } from "mattermost-redux/client";
 import { getCurrentChannelId } from "mattermost-redux/selectors/entities/common";
 
 import manifest from "../../manifest";
