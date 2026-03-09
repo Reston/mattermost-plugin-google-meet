@@ -2,15 +2,15 @@
 // See LICENSE.txt for license information.
 
 import manifest from "manifest";
+import React from "react";
 import type { Store } from "redux";
 
 import type { GlobalState } from "@mattermost/types/store";
+
 import { Client4 } from "mattermost-redux/client";
 import { getCurrentChannelId } from "mattermost-redux/selectors/entities/common";
 
 import type { PluginRegistry } from "types/mattermost-webapp";
-
-import React from "react";
 
 const MenuIcon = () => <i className="icon fa fa-video-camera" />;
 
@@ -25,10 +25,7 @@ const HeaderIcon = () => (
     />
 );
 
-const createMeeting = async (
-    channelId: string,
-    allowAuthRedirect = true,
-) => {
+const createMeeting = async (channelId: string, allowAuthRedirect = true) => {
     const response = await fetch(
         `/plugins/${manifest.id}/api/v1/create?channel_id=${encodeURIComponent(channelId)}`,
         Client4.getOptions({
@@ -95,16 +92,19 @@ export default class Plugin {
                 data?.type === AUTH_COMPLETE_MESSAGE_TYPE &&
                 data?.pluginId === manifest.id
             ) {
-                void retryPendingMeeting();
+                retryPendingMeeting().catch((error) => {
+                    // eslint-disable-next-line no-console
+                    console.error("Error retrying pending meeting:", error);
+                });
             }
         });
 
         window.addEventListener("storage", (event: StorageEvent) => {
-            if (
-                event.key === AUTH_COMPLETE_STORAGE_KEY &&
-                event.newValue
-            ) {
-                void retryPendingMeeting();
+            if (event.key === AUTH_COMPLETE_STORAGE_KEY && event.newValue) {
+                retryPendingMeeting().catch((error) => {
+                    // eslint-disable-next-line no-console
+                    console.error("Error retrying pending meeting:", error);
+                });
             }
         });
 
