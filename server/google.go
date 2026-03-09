@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,11 +23,27 @@ import (
 
 const (
 	googleOAuthCallbackRelPath = "/oauth2/callback"
+	googleTokenRefreshBuffer   = 5 * time.Minute
 )
+
+var errGoogleReauthorizationRequired = errors.New("google authorization expired; reconnect required")
+
+var googleTokenSourceFactory = func(ctx context.Context, plugin *Plugin, token *oauth2.Token) oauth2.TokenSource {
+	config := plugin.getOAuthConfig()
+	return oauth2.ReuseTokenSourceWithExpiry(token, config.TokenSource(ctx, token), googleTokenRefreshBuffer)
+}
 
 type storedGoogleToken struct {
 	EncryptedToken string        `json:"encrypted_token,omitempty"`
 	Token          *oauth2.Token `json:"token,omitempty"`
+}
+
+func getOAuthLoginURL(config *oauth2.Config, state string) string {
+	return config.AuthCodeURL(
+		state,
+		oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("prompt", "consent"),
+	)
 }
 
 func (p *Plugin) getOAuthConfig() *oauth2.Config {
@@ -51,6 +68,11 @@ func (p *Plugin) createMeeting(userID string) (string, error) {
 	}
 
 	ctx := context.Background()
+	token, err = p.refreshGoogleToken(ctx, userID, token)
+	if err != nil {
+		return "", err
+	}
+
 	client := p.getGoogleClient(ctx, token)
 
 	srv, err := calendar.NewService(ctx, option.WithHTTPClient(client))
@@ -82,10 +104,39 @@ func (p *Plugin) createMeeting(userID string) (string, error) {
 
 	event, err = srv.Events.Insert("primary", event).ConferenceDataVersion(1).Do()
 	if err != nil {
+		if isGoogleReauthorizationError(err) {
+			return "", errGoogleReauthorizationRequired
+		}
 		return "", fmt.Errorf("unable to create event: %v", err)
 	}
 
 	return event.HangoutLink, nil
+}
+
+func (p *Plugin) refreshGoogleToken(ctx context.Context, userID string, token *oauth2.Token) (*oauth2.Token, error) {
+	if googleTokenNeedsReauthorization(token) {
+		return nil, errGoogleReauthorizationRequired
+	}
+
+	if token != nil && time.Until(token.Expiry) > googleTokenRefreshBuffer {
+		return token, nil
+	}
+
+	refreshedToken, err := googleTokenSourceFactory(ctx, p, token).Token()
+	if err != nil {
+		if isGoogleReauthorizationError(err) {
+			return nil, errGoogleReauthorizationRequired
+		}
+		return nil, fmt.Errorf("refresh google token: %w", err)
+	}
+
+	if googleTokensDiffer(token, refreshedToken) {
+		if saveErr := p.saveGoogleToken(userID, refreshedToken); saveErr != nil {
+			p.API.LogWarn("Failed to store refreshed Google token", "user_id", userID, "error", saveErr.Error())
+		}
+	}
+
+	return refreshedToken, nil
 }
 
 func (p *Plugin) saveGoogleToken(userID string, token *oauth2.Token) error {
@@ -185,6 +236,33 @@ func (p *Plugin) decodeStoredGoogleToken(data []byte) (*oauth2.Token, bool, erro
 	}
 
 	return &legacyToken, true, nil
+}
+
+func googleTokenNeedsReauthorization(token *oauth2.Token) bool {
+	if token == nil {
+		return true
+	}
+
+	return token.RefreshToken == "" && !token.Valid()
+}
+
+func googleTokensDiffer(existing *oauth2.Token, refreshed *oauth2.Token) bool {
+	if existing == nil || refreshed == nil {
+		return existing != refreshed
+	}
+
+	return existing.AccessToken != refreshed.AccessToken ||
+		existing.RefreshToken != refreshed.RefreshToken ||
+		existing.TokenType != refreshed.TokenType ||
+		!existing.Expiry.Equal(refreshed.Expiry)
+}
+
+func isGoogleReauthorizationError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(err.Error(), "oauth2: token expired and refresh token is not set")
 }
 
 func (p *Plugin) getTokenEncryptionKey() ([]byte, error) {

@@ -1,7 +1,7 @@
 {
     "id": "com.mattermost.google-meet",
     "name": "Google Meet",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "description": "Create Google Meet meetings directly from Mattermost.",
     "homepage_url": "https://github.com/reston/mattermost-plugin-google-meet",
     "support_url": "https://github.com/reston/mattermost-plugin-google-meet/issues",

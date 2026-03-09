@@ -22,6 +22,8 @@ The OAuth callback URL to register in Google Cloud is:
 https://YOUR_MATTERMOST_SITE_URL/plugins/com.mattermost.google-meet/oauth2/callback
 ```
 
+The plugin now requests offline access so Google returns a refresh token. If a user previously connected before that change and later sees `oauth2: token expired and refresh token is not set`, they need to reconnect once through the plugin's Google login flow.
+
 ## Development
 
 Requirements:

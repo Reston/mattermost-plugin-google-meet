@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -50,7 +51,7 @@ func (p *Plugin) OAuth2Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url := p.getOAuthConfig().AuthCodeURL(userID)
+	url := getOAuthLoginURL(p.getOAuthConfig(), userID)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
@@ -148,7 +149,7 @@ func (p *Plugin) CreateMeeting(w http.ResponseWriter, r *http.Request) {
 	link, err := p.createMeeting(userID)
 	if err != nil {
 		p.API.LogError("Failed to create meeting", "error", err)
-		if err.Error() == "no token found" {
+		if err.Error() == "no token found" || errors.Is(err, errGoogleReauthorizationRequired) {
 			http.Error(w, "Authorization Required", http.StatusUnauthorized)
 			return
 		}
@@ -173,4 +174,3 @@ func (p *Plugin) CreateMeeting(w http.ResponseWriter, r *http.Request) {
 	resp, _ := json.Marshal(map[string]string{"meet_url": link})
 	w.Write(resp)
 }
-
